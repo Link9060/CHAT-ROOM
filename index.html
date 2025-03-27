@@ -1,11 +1,11 @@
-<!-- Real-Time Chat Page with Firebase (Usernames Added) -->
+<!-- Real-Time Chat Page with Firebase (Usernames Added, Online Users List) -->
 <!DOCTYPE html>
 <html>
 <head>
     <title>Firebase Chat</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-        import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
+        import { getDatabase, ref, push, onChildAdded, get, set, remove } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
 
         // Firebase configuration (Replace with your own config)
         const firebaseConfig = {
@@ -17,23 +17,53 @@
             messagingSenderId: "YOUR_SENDER_ID",
             appId: "YOUR_APP_ID"
         };
-        
+
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
         const messagesRef = ref(db, "messages");
+        const usersRef = ref(db, "onlineUsers");
 
         window.sendMessage = function () {
             var username = document.getElementById("username").value.trim();
             var messageInput = document.getElementById("message");
             var message = messageInput.value.trim();
-            
+
             if (username === "" || message === "") return;
-            
+
             push(messagesRef, { username: username, text: message });
             messageInput.value = "";
         };
 
+        // Add user to the online users list
+        function addUserToOnlineList(username) {
+            const userRef = ref(db, `onlineUsers/${username}`);
+            set(userRef, { username: username, status: "online" });
+        }
+
+        // Remove user from the online users list
+        function removeUserFromOnlineList(username) {
+            const userRef = ref(db, `onlineUsers/${username}`);
+            remove(userRef);
+        }
+
+        // Function to fetch previous messages when the page loads
+        function loadMessages() {
+            get(messagesRef).then((snapshot) => {
+                var chatBox = document.getElementById("chat-box");
+                if (snapshot.exists()) {
+                    snapshot.forEach((childSnapshot) => {
+                        var data = childSnapshot.val();
+                        var msgElement = document.createElement("p");
+                        msgElement.innerHTML = `<strong>${data.username}:</strong> ${data.text}`;
+                        chatBox.appendChild(msgElement);
+                    });
+                }
+                chatBox.scrollTop = chatBox.scrollHeight;
+            });
+        }
+
+        // Listen for new messages
         onChildAdded(messagesRef, (snapshot) => {
             var chatBox = document.getElementById("chat-box");
             var msgElement = document.createElement("p");
@@ -42,18 +72,157 @@
             chatBox.appendChild(msgElement);
             chatBox.scrollTop = chatBox.scrollHeight;
         });
+
+        // Listen for changes to online users
+        onChildAdded(usersRef, (snapshot) => {
+            var activeUsersList = document.getElementById("active-users");
+            var user = snapshot.val();
+            var userElement = document.createElement("li");
+            userElement.textContent = user.username;
+            activeUsersList.appendChild(userElement);
+        });
+
+        // Load existing messages when the page is loaded
+        window.onload = function () {
+            loadMessages();
+            var username = document.getElementById("username").value.trim();
+            if (username !== "") {
+                addUserToOnlineList(username);
+            }
+
+            // Remove user when they leave the page
+            window.onbeforeunload = function () {
+                removeUserFromOnlineList(username);
+            };
+        };
     </script>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; }
-        #chat-box { width: 300px; height: 400px; border: 1px solid #ccc; overflow-y: scroll; margin: auto; padding: 10px; }
-        #username, #message { width: 80%; margin-top: 5px; }
+        /* Basic reset and layout */
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            margin: 0;
+            height: 100vh;
+        }
+
+        /* Side menu styles */
+        #side-menu {
+            width: 200px;
+            background-color: #333;
+            color: white;
+            padding: 20px;
+            height: 100%;
+            position: fixed;
+        }
+
+        #side-menu h2 {
+            text-align: center;
+            margin-top: 0;
+        }
+
+        #side-menu ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #side-menu ul li {
+            margin: 10px 0;
+            padding: 8px;
+            background-color: #444;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        #side-menu ul li:hover {
+            background-color: #555;
+        }
+
+        /* Chat box container */
+        #chat-container {
+            margin-left: 220px;
+            width: calc(100% - 220px);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        #chat-box {
+            width: 100%;
+            height: 400px;
+            border: 1px solid #ccc;
+            overflow-y: scroll;
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+
+        #username, #message {
+            width: 80%;
+            margin-top: 5px;
+        }
+
+        /* Chat button */
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        /* Active users list */
+        #active-users {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #eee;
+            border-radius: 5px;
+            list-style-type: none;
+        }
+
+        #active-users li {
+            margin: 5px 0;
+            padding: 5px;
+            background-color: #ddd;
+        }
+
+        /* Simple responsiveness */
+        @media (max-width: 800px) {
+            #side-menu {
+                width: 100%;
+                position: relative;
+            }
+
+            #chat-container {
+                margin-left: 0;
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
-    <h2>Real-Time Chat</h2>
-    <input type="text" id="username" placeholder="Enter your name">
-    <div id="chat-box"></div>
-    <input type="text" id="message" placeholder="Type a message...">
-    <button onclick="sendMessage()">Send</button>
+    <div id="side-menu">
+        <h2>Menu</h2>
+        <ul>
+            <li>Home</li>
+            <li>Settings</li>
+            <li>Help</li>
+        </ul>
+    </div>
+    <div id="chat-container">
+        <h2>Real-Time Chat</h2>
+        <input type="text" id="username" placeholder="Enter your name">
+        <div id="chat-box"></div>
+        <input type="text" id="message" placeholder="Type a message...">
+        <button onclick="sendMessage()">Send</button>
+
+        <h3>Online Users</h3>
+        <ul id="active-users"></ul>
+    </div>
 </body>
 </html>
