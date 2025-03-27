@@ -1,11 +1,13 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Firebase Chat</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-        import { getDatabase, ref, push, onChildAdded, set, remove } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+        import { getDatabase, ref, push, onChildAdded, remove, set } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, signInWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 
         // Firebase configuration (Replace with your own config)
         const firebaseConfig = {
@@ -22,40 +24,40 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
         const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
         const messagesRef = ref(db, "messages");
         const usersRef = ref(db, "onlineUsers");
 
         // Google Authentication
-        const provider = new GoogleAuthProvider();
-
         window.loginWithGoogle = function () {
             signInWithPopup(auth, provider)
                 .then((result) => {
                     const user = result.user;
                     const username = user.displayName;
                     addUserToOnlineList(user.uid, username);
-                }).catch((error) => {
-                    console.error("Error signing in with Google", error);
+                })
+                .catch((error) => {
+                    console.error("Error signing in with Google:", error);
+                    signInWithRedirect(auth, provider); // Fallback to redirect if popup fails
                 });
         };
 
         window.logout = function () {
             signOut(auth).then(() => {
                 console.log("User signed out");
-                // Remove user from online list
                 removeUserFromOnlineList();
             }).catch((error) => {
                 console.error("Error signing out", error);
             });
         };
 
-        // Add user to the online users list
+        // Add user to online users list
         function addUserToOnlineList(userId, username) {
             const userRef = ref(db, `onlineUsers/${userId}`);
             set(userRef, { username: username, status: "online" });
         }
 
-        // Remove user from the online users list
+        // Remove user from online users list
         function removeUserFromOnlineList() {
             const user = auth.currentUser;
             if (user) {
@@ -82,7 +84,7 @@
             messageInput.value = "";
         };
 
-        // Load messages
+        // Load messages in real-time
         onChildAdded(messagesRef, (snapshot) => {
             const chatBox = document.getElementById("chat-box");
             const msgElement = document.createElement("p");
@@ -92,7 +94,7 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         });
 
-        // Listen for active users and update the list in real time
+        // Listen for active users and update the list in real-time
         onChildAdded(usersRef, (snapshot) => {
             const activeUsersList = document.getElementById("active-users");
             const user = snapshot.val();
@@ -132,6 +134,18 @@
             }
         });
 
+        // Check for redirected sign-in (for fallback)
+        getRedirectResult(auth)
+            .then((result) => {
+                if (result) {
+                    const user = result.user;
+                    const username = user.displayName;
+                    addUserToOnlineList(user.uid, username);
+                }
+            }).catch((error) => {
+                console.error("Error during redirect sign-in:", error);
+            });
+
         // Initialize the page with messages and users
         window.onload = function () {
             const user = auth.currentUser;
@@ -141,7 +155,6 @@
         };
     </script>
     <style>
-        /* Basic reset and layout */
         body {
             font-family: Arial, sans-serif;
             display: flex;
@@ -149,7 +162,6 @@
             height: 100vh;
         }
 
-        /* Side menu styles */
         #side-menu {
             width: 200px;
             background-color: #333;
@@ -183,7 +195,6 @@
             background-color: #555;
         }
 
-        /* Chat box container */
         #chat-container {
             margin-left: 220px;
             width: calc(100% - 220px);
@@ -208,7 +219,6 @@
             margin-top: 5px;
         }
 
-        /* Chat button */
         button {
             padding: 10px 20px;
             background-color: #4CAF50;
@@ -222,7 +232,6 @@
             background-color: #45a049;
         }
 
-        /* Active users list in side menu */
         #active-users {
             margin-top: 20px;
             padding: 10px;
@@ -237,7 +246,6 @@
             background-color: #ddd;
         }
 
-        /* Simple responsiveness */
         @media (max-width: 800px) {
             #side-menu {
                 width: 100%;
