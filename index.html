@@ -1,11 +1,11 @@
-<!-- Real-Time Chat Page with Firebase (Usernames Added, Online Users List) -->
+<!-- Real-Time Chat Page with Firebase (Online Users in Side Menu) -->
 <!DOCTYPE html>
 <html>
 <head>
     <title>Firebase Chat</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-        import { getDatabase, ref, push, onChildAdded, get, set, remove } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
+        import { getDatabase, ref, push, onChildAdded, get, set, remove, onChildRemoved } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
 
         // Firebase configuration (Replace with your own config)
         const firebaseConfig = {
@@ -73,13 +73,25 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         });
 
-        // Listen for changes to online users
+        // Listen for changes to online users (adding and removing)
         onChildAdded(usersRef, (snapshot) => {
             var activeUsersList = document.getElementById("active-users");
             var user = snapshot.val();
             var userElement = document.createElement("li");
             userElement.textContent = user.username;
             activeUsersList.appendChild(userElement);
+        });
+
+        onChildRemoved(usersRef, (snapshot) => {
+            var activeUsersList = document.getElementById("active-users");
+            var usernameToRemove = snapshot.val().username;
+            const userElements = activeUsersList.getElementsByTagName("li");
+            for (let i = 0; i < userElements.length; i++) {
+                if (userElements[i].textContent === usernameToRemove) {
+                    activeUsersList.removeChild(userElements[i]);
+                    break;
+                }
+            }
         });
 
         // Load existing messages when the page is loaded
@@ -113,6 +125,8 @@
             padding: 20px;
             height: 100%;
             position: fixed;
+            top: 0;
+            left: 0;
         }
 
         #side-menu h2 {
@@ -176,7 +190,7 @@
             background-color: #45a049;
         }
 
-        /* Active users list */
+        /* Active users list in side menu */
         #active-users {
             margin-top: 20px;
             padding: 10px;
@@ -207,12 +221,8 @@
 </head>
 <body>
     <div id="side-menu">
-        <h2>Menu</h2>
-        <ul>
-            <li>Home</li>
-            <li>Settings</li>
-            <li>Help</li>
-        </ul>
+        <h2>Online Users</h2>
+        <ul id="active-users"></ul>
     </div>
     <div id="chat-container">
         <h2>Real-Time Chat</h2>
@@ -220,9 +230,6 @@
         <div id="chat-box"></div>
         <input type="text" id="message" placeholder="Type a message...">
         <button onclick="sendMessage()">Send</button>
-
-        <h3>Online Users</h3>
-        <ul id="active-users"></ul>
     </div>
 </body>
 </html>
