@@ -1,11 +1,11 @@
-<!-- Real-Time Chat Page with Firebase (Online Users in Side Menu) -->
 <!DOCTYPE html>
 <html>
 <head>
     <title>Firebase Chat</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-        import { getDatabase, ref, push, onChildAdded, onChildRemoved, set, remove, onValue } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
+        import { getDatabase, ref, push, onChildAdded, set, remove } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 
         // Firebase configuration (Replace with your own config)
         const firebaseConfig = {
@@ -21,54 +21,72 @@
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
+        const auth = getAuth(app);
         const messagesRef = ref(db, "messages");
         const usersRef = ref(db, "onlineUsers");
 
-        window.sendMessage = function () {
-            var username = document.getElementById("username").value.trim();
-            var messageInput = document.getElementById("message");
-            var message = messageInput.value.trim();
+        // Google Authentication
+        const provider = new GoogleAuthProvider();
 
-            if (username === "" || message === "") return;
+        window.loginWithGoogle = function () {
+            signInWithPopup(auth, provider)
+                .then((result) => {
+                    const user = result.user;
+                    const username = user.displayName;
+                    addUserToOnlineList(user.uid, username);
+                }).catch((error) => {
+                    console.error("Error signing in with Google", error);
+                });
+        };
+
+        window.logout = function () {
+            signOut(auth).then(() => {
+                console.log("User signed out");
+                // Remove user from online list
+                removeUserFromOnlineList();
+            }).catch((error) => {
+                console.error("Error signing out", error);
+            });
+        };
+
+        // Add user to the online users list
+        function addUserToOnlineList(userId, username) {
+            const userRef = ref(db, `onlineUsers/${userId}`);
+            set(userRef, { username: username, status: "online" });
+        }
+
+        // Remove user from the online users list
+        function removeUserFromOnlineList() {
+            const user = auth.currentUser;
+            if (user) {
+                const userRef = ref(db, `onlineUsers/${user.uid}`);
+                remove(userRef);
+            }
+        }
+
+        // Send a message to Firebase
+        window.sendMessage = function () {
+            const user = auth.currentUser;
+            if (!user) {
+                alert("You need to log in first!");
+                return;
+            }
+
+            const username = user.displayName;
+            const messageInput = document.getElementById("message");
+            const message = messageInput.value.trim();
+
+            if (message === "") return;
 
             push(messagesRef, { username: username, text: message });
             messageInput.value = "";
         };
 
-        // Add user to the online users list
-        function addUserToOnlineList(username) {
-            const userRef = ref(db, `onlineUsers/${username}`);
-            set(userRef, { username: username, status: "online" });
-        }
-
-        // Remove user from the online users list
-        function removeUserFromOnlineList(username) {
-            const userRef = ref(db, `onlineUsers/${username}`);
-            remove(userRef);
-        }
-
-        // Fetch and display existing messages when the page loads
-        function loadMessages() {
-            onValue(messagesRef, (snapshot) => {
-                var chatBox = document.getElementById("chat-box");
-                chatBox.innerHTML = ''; // Clear existing messages
-                if (snapshot.exists()) {
-                    snapshot.forEach((childSnapshot) => {
-                        var data = childSnapshot.val();
-                        var msgElement = document.createElement("p");
-                        msgElement.innerHTML = `<strong>${data.username}:</strong> ${data.text}`;
-                        chatBox.appendChild(msgElement);
-                    });
-                }
-                chatBox.scrollTop = chatBox.scrollHeight;
-            });
-        }
-
-        // Listen for new messages
+        // Load messages
         onChildAdded(messagesRef, (snapshot) => {
-            var chatBox = document.getElementById("chat-box");
-            var msgElement = document.createElement("p");
-            var data = snapshot.val();
+            const chatBox = document.getElementById("chat-box");
+            const msgElement = document.createElement("p");
+            const data = snapshot.val();
             msgElement.innerHTML = `<strong>${data.username}:</strong> ${data.text}`;
             chatBox.appendChild(msgElement);
             chatBox.scrollTop = chatBox.scrollHeight;
@@ -76,16 +94,16 @@
 
         // Listen for active users and update the list in real time
         onChildAdded(usersRef, (snapshot) => {
-            var activeUsersList = document.getElementById("active-users");
-            var user = snapshot.val();
-            var userElement = document.createElement("li");
+            const activeUsersList = document.getElementById("active-users");
+            const user = snapshot.val();
+            const userElement = document.createElement("li");
             userElement.textContent = user.username;
             activeUsersList.appendChild(userElement);
         });
 
         onChildRemoved(usersRef, (snapshot) => {
-            var activeUsersList = document.getElementById("active-users");
-            var usernameToRemove = snapshot.val().username;
+            const activeUsersList = document.getElementById("active-users");
+            const usernameToRemove = snapshot.val().username;
             const userElements = activeUsersList.getElementsByTagName("li");
             for (let i = 0; i < userElements.length; i++) {
                 if (userElements[i].textContent === usernameToRemove) {
@@ -95,23 +113,31 @@
             }
         });
 
+        // Handle authentication state changes (i.e. when user logs in/out)
+        onAuthStateChanged(auth, (user) => {
+            const loginBtn = document.getElementById("login-btn");
+            const logoutBtn = document.getElementById("logout-btn");
+            const messageBox = document.getElementById("message-box");
+
+            if (user) {
+                // User logged in
+                loginBtn.style.display = "none";
+                logoutBtn.style.display = "inline-block";
+                messageBox.style.display = "block";
+            } else {
+                // User logged out
+                loginBtn.style.display = "inline-block";
+                logoutBtn.style.display = "none";
+                messageBox.style.display = "none";
+            }
+        });
+
         // Initialize the page with messages and users
         window.onload = function () {
-            loadMessages();
-            var usernameInput = document.getElementById("username");
-            var username = usernameInput.value.trim();
-
-            // Add the user to online list if username is not empty
-            if (username !== "") {
-                addUserToOnlineList(username);
+            const user = auth.currentUser;
+            if (user) {
+                addUserToOnlineList(user.uid, user.displayName);
             }
-
-            // Remove user from online list when they leave the page
-            window.onbeforeunload = function () {
-                if (username !== "") {
-                    removeUserFromOnlineList(username);
-                }
-            };
         };
     </script>
     <style>
@@ -232,10 +258,13 @@
     </div>
     <div id="chat-container">
         <h2>Real-Time Chat</h2>
-        <input type="text" id="username" placeholder="Enter your name">
+        <button id="login-btn" onclick="loginWithGoogle()">Login with Google</button>
+        <button id="logout-btn" onclick="logout()" style="display: none;">Logout</button>
+        <div id="message-box" style="display: none;">
+            <input type="text" id="message" placeholder="Type a message...">
+            <button onclick="sendMessage()">Send</button>
+        </div>
         <div id="chat-box"></div>
-        <input type="text" id="message" placeholder="Type a message...">
-        <button onclick="sendMessage()">Send</button>
     </div>
 </body>
 </html>
