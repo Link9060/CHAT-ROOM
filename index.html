@@ -5,7 +5,7 @@
     <title>Firebase Chat</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-        import { getDatabase, ref, push, onChildAdded, get, set, remove, onChildRemoved } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
+        import { getDatabase, ref, push, onChildAdded, onChildRemoved, set, remove, onValue } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
 
         // Firebase configuration (Replace with your own config)
         const firebaseConfig = {
@@ -47,10 +47,11 @@
             remove(userRef);
         }
 
-        // Function to fetch previous messages when the page loads
+        // Fetch and display existing messages when the page loads
         function loadMessages() {
-            get(messagesRef).then((snapshot) => {
+            onValue(messagesRef, (snapshot) => {
                 var chatBox = document.getElementById("chat-box");
+                chatBox.innerHTML = ''; // Clear existing messages
                 if (snapshot.exists()) {
                     snapshot.forEach((childSnapshot) => {
                         var data = childSnapshot.val();
@@ -73,7 +74,7 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         });
 
-        // Listen for changes to online users (adding and removing)
+        // Listen for active users and update the list in real time
         onChildAdded(usersRef, (snapshot) => {
             var activeUsersList = document.getElementById("active-users");
             var user = snapshot.val();
@@ -94,17 +95,22 @@
             }
         });
 
-        // Load existing messages when the page is loaded
+        // Initialize the page with messages and users
         window.onload = function () {
             loadMessages();
-            var username = document.getElementById("username").value.trim();
+            var usernameInput = document.getElementById("username");
+            var username = usernameInput.value.trim();
+
+            // Add the user to online list if username is not empty
             if (username !== "") {
                 addUserToOnlineList(username);
             }
 
-            // Remove user when they leave the page
+            // Remove user from online list when they leave the page
             window.onbeforeunload = function () {
-                removeUserFromOnlineList(username);
+                if (username !== "") {
+                    removeUserFromOnlineList(username);
+                }
             };
         };
     </script>
