@@ -56,6 +56,8 @@
             Notification.requestPermission();
         }
 
+        const messageSound = new Audio("https://www.myinstants.com/media/sounds/ding-sound-effect_2.mp3");
+
         window.sendMessage = function () {
             username = document.getElementById("username").value.trim();
             const messageInput = document.getElementById("message");
@@ -92,6 +94,9 @@
                 chatBox.appendChild(msgElement);
             });
             chatBox.scrollTop = chatBox.scrollHeight;
+            if (document.hidden) {
+                messageSound.play();
+            }
         });
     </script>
     <style>
